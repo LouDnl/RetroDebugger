@@ -119,6 +119,9 @@ typedef struct sid_hs_snapshot_state_s {
     DWORD device_map[4];
 } sid_hs_snapshot_state_t;
 
+typedef struct sid_us_snapshot_state_s {
+    uint8_t regs[32];
+} sid_us_snapshot_state_t;
 typedef struct sid_parsid_snapshot_state_s {
     BYTE regs[32];
     BYTE parsid_ctrport;

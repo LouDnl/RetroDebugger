@@ -38,6 +38,9 @@
 #ifdef HAVE_PARSID
 #include "parsid.h"
 #endif
+#ifdef HAVE_USBSID
+#include "usbsid.h"
+#endif
 #include "resources.h"
 #include "sid-resources.h"
 #include "sid.h"
@@ -106,6 +109,9 @@ int set_sid_engine(int set_engine, void *param)
 #endif
 #ifdef HAVE_SSI2001
         case SID_ENGINE_SSI2001:
+#endif
+#ifdef HAVE_USBSID
+        case SID_ENGINE_USBSID:
 #endif
             break;
         default:
@@ -198,7 +204,7 @@ int set_sid_model(int val, void *param)
             sid_model = SID_MODEL_DTVSID;
         } else
 #endif
-        if ((machine_class == VICE_MACHINE_C128) || 
+        if ((machine_class == VICE_MACHINE_C128) ||
             (machine_class == VICE_MACHINE_C64) ||
             (machine_class == VICE_MACHINE_C64SC) ||
             (machine_class == VICE_MACHINE_SCPU64)){
@@ -313,10 +319,18 @@ void sid_set_enable(int value)
     if (val == sid_enabled) {
         return;
     }
-
+#ifdef HAVE_FASTSID
     if (val) {
         sid_engine_set(SID_ENGINE_FASTSID);
-    } else {
+    } else
+#endif
+#ifdef HAVE_USBSID
+    if (val) {
+        sid_engine_set(SID_ENGINE_USBSID);
+    } else
+#endif
+
+    {
         sid_engine_set(sid_engine);
     }
     sid_enabled = val;
@@ -431,6 +445,15 @@ static sid_engine_model_t sid_engine_models_parsid[] = {
 };
 #endif
 
+#ifdef HAVE_USBSID
+// #if !defined(WINDOWS_COMPILE)
+static sid_engine_model_t sid_engine_models_usbsid[] = {
+    { "USBSID", SID_USBSID },
+    { NULL, -1 }
+};
+// #endif
+#endif
+
 #ifdef HAVE_SSI2001
 static sid_engine_model_t sid_engine_models_ssi2001[] = {
     { "SSI2001", SID_SSI2001 },
@@ -498,6 +521,13 @@ sid_engine_model_t **sid_get_engine_model_list(void)
     }
 #endif
 
+#ifdef HAVE_USBSID
+// #if !defined(WINDOWS_COMPILE)
+    if (usbsid_available()) {
+        add_sid_engine_models(sid_engine_models_usbsid);
+    }
+#endif
+
 #ifdef HAVE_SSI2001
     if (ssi2001_available()) {
         add_sid_engine_models(sid_engine_models_ssi2001);
@@ -520,6 +550,7 @@ static int sid_check_engine_model(int engine, int model)
         case SID_ENGINE_CATWEASELMKIII:
         case SID_ENGINE_HARDSID:
         case SID_ENGINE_PARSID:
+        case SID_ENGINE_USBSID:
         case SID_ENGINE_SSI2001:
             return 0;
         default:
@@ -563,7 +594,7 @@ static int sid_check_engine_model(int engine, int model)
 int sid_set_engine_model(int engine, int model)
 {
 	LOGD("sid_set_engine_model: engine=%d model=%d", engine, model);
-	
+
     if (sid_check_engine_model(engine, model) < 0) {
         return -1;
     }
@@ -618,6 +649,5 @@ void c64d_sid_set_engine_model_direct(int engine, int model)
 {
 	set_sid_engine(engine, NULL);
 	set_sid_model(model, NULL);
-	
-}
 
+}

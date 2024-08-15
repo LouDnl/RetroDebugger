@@ -906,12 +906,17 @@ void CDebugInterfaceVice::GetSidTypes(std::vector<const char *> *sidTypes)
 	sidTypes->push_back("8580R5 3691 + digi (ReSID-fp)");
 	sidTypes->push_back("8580R5 1489 (ReSID-fp)");
 	sidTypes->push_back("8580R5 1489 + digi (ReSID-fp)");
-	
+
+#if defined(LINUX)
+	// 15 USBSID-Pico
+	sidTypes->push_back("USBSID-Pico");
+#endif
+
 #if defined(WIN32)
 	// 15 hardsid
 	sidTypes->push_back("HardSID");
 #endif
-	
+
 }
 
 int c64_change_sid_type_value_to_set = 0;
@@ -988,9 +993,13 @@ void CDebugInterfaceVice::SetSidTypeAsync(int sidType)
 			sid_set_engine_model(SID_ENGINE_RESID_FP, SID_MODEL_8580R5_1489D);
 			break;
 		case 15:
+			#if defined(LINUX)
+			sid_set_engine_model(SID_ENGINE_USBSID, SID_MODEL_DEFAULT);
+			#else
 			sid_set_engine_model(SID_ENGINE_HARDSID, SID_MODEL_DEFAULT);
+			#endif
 			break;
-			
+
 	}
 	snapshotsManager->UnlockMutex();
 }

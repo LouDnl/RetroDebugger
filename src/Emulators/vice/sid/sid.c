@@ -36,6 +36,7 @@
 #include "catweaselmkiii.h"
 #include "fastsid.h"
 #include "hardsid.h"
+#include "usbsid.h"
 #include "joyport.h"
 #include "lib.h"
 #include "machine.h"
@@ -317,7 +318,7 @@ static int sidengine;
 sound_t *sid_sound_machine_open(int chipno)
 {
 	LOGD("sid_sound_machine_open");
-	
+
     sidengine = 0;
 
     if (resources_get_int("SidEngine", &sidengine) < 0) {
@@ -380,7 +381,7 @@ int sid_sound_machine_init_vbr(sound_t *psid, int speed, int cycles_per_sec, int
 int sid_sound_machine_init(sound_t *psid, int speed, int cycles_per_sec)
 {
     int ret = sid_engine.init(psid, speed, cycles_per_sec, 1000);
-	
+
 	sid_engine.set_voice_mask(psid, c64d_sid_voiceMask);
 
 	return ret;
@@ -515,6 +516,10 @@ int sid_sound_machine_cycle_based(void)
         case SID_ENGINE_PARSID:
             return 0;
 #endif
+#ifdef HAVE_USBSID
+        case SID_ENGINE_USBSID:
+            return 0;
+#endif
 #ifdef HAVE_SSI2001
         case SID_ENGINE_SSI2001:
             return 0;
@@ -585,6 +590,12 @@ static void set_sound_func(void)
             sid_dump_func = NULL; /* TODO: hardsid dump */
         }
 #endif
+#ifdef HAVE_USBSID
+            sid_read_func = usbsid_read;
+            sid_store_func = usbsid_store;
+            sid_dump_func = NULL; /* TODO: usbsid dump */
+        }
+#endif
     } else {
         sid_read_func = sid_read_off;
         sid_store_func = sid_write_off;
@@ -639,6 +650,18 @@ int sid_engine_set(int engine)
     if (engine != SID_ENGINE_PARSID
         && sid_engine_type == SID_ENGINE_PARSID) {
         parsid_close();
+    }
+#endif
+#ifdef HAVE_USBSID
+    if (engine == SID_ENGINE_USBSID
+        && sid_engine_type != SID_ENGINE_USBSID) {
+        if (usbsid_open() < 0) {
+            return -1;
+        }
+    }
+    if (engine != SID_ENGINE_USBSID
+        && sid_engine_type == SID_ENGINE_USBSID) {
+        usbsid_close();
     }
 #endif
 #ifdef HAVE_SSI2001
