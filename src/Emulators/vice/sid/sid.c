@@ -591,6 +591,7 @@ static void set_sound_func(void)
         }
 #endif
 #ifdef HAVE_USBSID
+        if (sid_engine_type == SID_ENGINE_USBSID) {
             sid_read_func = usbsid_read;
             sid_store_func = usbsid_store;
             sid_dump_func = NULL; /* TODO: usbsid dump */
