@@ -35,6 +35,7 @@
 #include "catweaselmkiii.h"
 #include "fastsid.h"
 #include "hardsid.h"
+#include "usbsid.h"
 #include "log.h"
 #include "parsid.h"
 #include "resources.h"
@@ -241,7 +242,7 @@ static int sid_snapshot_read_module_simple(snapshot_t *s, int sidnr)
             goto fail;
         }
         memcpy(sid_get_siddata(sidnr), &tmp[2], 32);
-		
+
 		c64d_lock_sound_mutex("vice::sid_snapshot_read_module_simple");
         sound_open();
 		c64d_unlock_sound_mutex("vice::sid_snapshot_read_module_simple");
@@ -316,7 +317,7 @@ static int sid_snapshot_read_module_simple(snapshot_t *s, int sidnr)
             intended_sid_engine = res_engine;
             set_sid_engine_with_fallback(res_engine);
             memcpy(sid_get_siddata(0), &tmp[2], 32);
-						
+
 			c64d_lock_sound_mutex("vice::sid_snapshot_read_module_simple 3");
             sound_open();
 			c64d_unlock_sound_mutex("vice::sid_snapshot_read_module_simple 3");
@@ -1078,7 +1079,7 @@ int sid_snapshot_write_module(snapshot_t *s)
 			}
 		}
 	}
-	
+
     return 0;
 }
 

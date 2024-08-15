@@ -44,6 +44,10 @@
 #include "translate.h"
 #include "util.h"
 
+#ifdef HAVE_USBSID  // TODO: CHECK AND FINISH
+    #include "usbsid.h"
+#endif
+
 static char *sid_address_range = NULL;
 
 struct engine_s {
@@ -102,6 +106,12 @@ static struct engine_s engine_match[] = {
     { "1280", SID_SSI2001 },
     { "ssi2001", SID_SSI2001 },
     { "ssi", SID_SSI2001 },
+#endif
+#ifdef HAVE_USBSID
+    { "1280", SID_USBSID },
+    { "usbsid", SID_USBSID },
+    { "usbs", SID_USBSID },
+    { "us", SID_USBSID },
 #endif
     { NULL, -1 }
 };

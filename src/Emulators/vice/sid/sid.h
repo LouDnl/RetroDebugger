@@ -34,7 +34,9 @@
 #include "vicetypes.h"
 #include "sound.h"
 
-#if (defined(WIN32) || defined(MACOSX_COCOA) || defined(WATCOM_COMPILE) || defined(__BEOS__)) && !defined(USE_SDLUI)
+#define LINUX
+
+#if (defined(LINUX) || defined(WIN32) || defined(MACOSX_COCOA) || defined(WATCOM_COMPILE) || defined(__BEOS__)) && !defined(USE_SDLUI)
 #define SID_SETTINGS_DIALOG
 #endif
 
@@ -47,6 +49,7 @@ struct sid_snapshot_state_s;
 #define SID_ENGINE_HARDSID        3
 #define SID_ENGINE_PARSID         4
 #define SID_ENGINE_SSI2001        5
+#define SID_ENGINE_USBSID         6
 #define SID_ENGINE_RESID_FP       7
 #define SID_ENGINE_DEFAULT       99
 
@@ -80,6 +83,7 @@ struct sid_snapshot_state_s;
 #define SID_HARDSID               (SID_ENGINE_HARDSID << 8)
 #define SID_PARSID                (SID_ENGINE_PARSID << 8)
 #define SID_SSI2001               (SID_ENGINE_SSI2001 << 8)
+#define SID_USBSID                (SID_ENGINE_USBSID << 8)
 #define SID_RESIDFP_6581R3_4885   ((SID_ENGINE_RESID_FP << 8) | SID_MODEL_6581R3_4885)
 #define SID_RESIDFP_6581R3_0486S  ((SID_ENGINE_RESID_FP << 8) | SID_MODEL_6581R3_0486S)
 #define SID_RESIDFP_6581R3_3984   ((SID_ENGINE_RESID_FP << 8) | SID_MODEL_6581R3_3984)
@@ -128,7 +132,7 @@ struct sid_engine_s {
                        struct sid_snapshot_state_s *sid_state);
     void (*state_write)(struct sound_s *psid,
                         struct sid_snapshot_state_s *sid_state);
-	
+
 	// c64 debugger
 	void (*set_voice_mask)(struct sound_s *psid, BYTE voiceMask);
 };

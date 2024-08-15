@@ -20,6 +20,10 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fpermissive")
 find_package(PkgConfig REQUIRED)
 find_package(SDL2 REQUIRED)
 include_directories(${SDL2_INCLUDE_DIRS})
+pkg_check_modules(LIBUSB REQUIRED libusb-1.0)
+include_directories(${LIBUSB_INCLUDE_DIRS})
+link_directories(${LIBUSB_LIBRARY_DIRS})
+add_definitions(${LIBUSB_CFLAGS_OTHER})
 pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
 include_directories(${GTK3_INCLUDE_DIRS})
 link_directories(${GTK3_LIBRARY_DIRS})
@@ -191,7 +195,8 @@ include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Views/Nes"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Views/JukeboxPlaylist"
 
-    "${CMAKE_CURRENT_SOURCE_DIR}/platform/Linux/src.Linux" 
+    "${CMAKE_CURRENT_SOURCE_DIR}/platform/Linux/src.Linux"
+    "${CMAKE_CURRENT_SOURCE_DIR}/platform/Linux/src.Linux/usbsid"
 
 )
 
@@ -206,9 +211,9 @@ add_library(Plugins STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Plugins/C64DebuggerPluginDummy.cpp"
 
 #     "${CMAKE_CURRENT_SOURCE_DIR}/src/Plugins/ShowPic/C64DebuggerPluginShowPic.cpp"
-    
+
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Plugins/Slideshow/C64DebuggerPluginSlideshow.cpp"
-    
+
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Plugins/GoatTracker/CAudioChannelGoatTracker.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Plugins/GoatTracker/CViewC64GoatTracker.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Plugins/GoatTracker/gt2/gsid.cpp"
@@ -1445,6 +1450,7 @@ add_executable(retrodebugger
 
     "${CMAKE_CURRENT_SOURCE_DIR}/platform/Linux/src.Linux/archdep.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/platform/Linux/src.Linux/mididrv.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/platform/Linux/src.Linux/usbsid/usbsid.c"
 )
 
 target_link_libraries(retrodebugger
@@ -1467,8 +1473,8 @@ target_link_libraries(retrodebugger
     freetype
     X11
     z
+    usb-1.0
     ${GTK3_LIBRARIES}
     ${SDL2_LIBRARIES}
     ${ALSA_LIBRARIES}
 )
-
