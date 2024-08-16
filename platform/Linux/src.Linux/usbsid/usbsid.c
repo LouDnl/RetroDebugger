@@ -249,7 +249,7 @@ void us_device_reset(void)
     if (sids_found > 0) {
         unsigned char data[4] = {0x3, 0x0, 0x0, 0x0};
         int size = sizeof(data);
-        if (libusb_bulk_transfer(devh, ep_in_addr, data, size, &actual_length, 0) < 0)
+        if (libusb_bulk_transfer(devh, ep_out_addr, data, size, &actual_length, 0) < 0)
         {
             fprintf(stderr, "Error while sending reset to sid\r\n");
         }
@@ -264,7 +264,6 @@ int us_device_open(void)
     }
 
     if (sids_found > 0) {
-        // return 0;
         return sids_found;
     }
 
