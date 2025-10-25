@@ -16,8 +16,8 @@ class C64KeyCode;
 class CViewC64KeyMapKeyData
 {
 public:
-	char *name1;
-	char *name2;
+	const char *name1;
+	const char *name2;
 	float x, y;
 	float width;
 	float xl;
@@ -94,7 +94,7 @@ public:
 	float linefx, linefy, linefsx, linefsy;
 	
 	std::map<int, CViewC64KeyMapKeyData *> buttonKeys;
-	CViewC64KeyMapKeyData *AddButtonKey(char *keyName1, char *keyName2, float x, float y, float width, int matrixRow, int matrixCol);
+	CViewC64KeyMapKeyData *AddButtonKey(const char *keyName1, const char *keyName2, float x, float y, float width, int matrixRow, int matrixCol);
 	
 	//
 	
@@ -107,7 +107,6 @@ public:
 	void UpdateFromKeyMap(C64KeyMap *keyMap);
 	C64KeyMap *keyMap;
 	
-	CGuiButton *btnBack;
 	CGuiButton *btnExportKeyMap;
 	CGuiButton *btnImportKeyMap;
 	
@@ -118,7 +117,7 @@ public:
 
 	bool ButtonClicked(CGuiButton *button);
 	
-	void SaveAndGoBack();
+	void SaveKeyboardMapping();
 	
 	bool isShift;
 	

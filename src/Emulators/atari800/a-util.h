@@ -4,9 +4,7 @@
 #include "atari-config.h"
 #include <stdio.h>
 #include <string.h>
-#if HAVE_STRINGS_H
-#include <strings.h>
-#endif
+#include <unistd.h>
 #include <math.h>
 #include <ctype.h>
 #ifdef HAVE_WINDOWS_H
@@ -14,6 +12,9 @@
 #endif
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
+#if !defined(WIN32)
+#include <strings.h>
 #endif
 
 /* String functions ------------------------------------------------------ */

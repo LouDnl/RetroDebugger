@@ -56,18 +56,6 @@ CViewC64KeyMap::CViewC64KeyMap(float posX, float posY, float posZ, float sizeX, 
 	float buttonGapY = 5.0f;
 	float textOffsetY = 4.5f;
 	
-	btnBack = new CGuiButton(NULL, NULL,
-								   px, py, posZ, buttonSizeX, buttonSizeY,
-								   new CSlrString("SET AS DEFAULT"),
-								   FONT_ALIGN_CENTER, buttonSizeX/2, textOffsetY,
-								   font, fontScale,
-								   1.0, 1.0, 1.0, 1.0,
-								   0.3, 0.3, 0.3, 1.0,
-								   this);
-	this->AddGuiElement(btnBack);
-	
-	px += buttonSizeX + buttonGap;
-
 	btnImportKeyMap = new CGuiButton(NULL, NULL,
 							 px, py, posZ, buttonSizeX, buttonSizeY,
 							 new CSlrString("IMPORT"),
@@ -366,10 +354,6 @@ void CViewC64KeyMap::SetPosition(float posX, float posY, float posZ, float sizeX
 	float buttonGap = 8.0f;
 	float buttonGapY = 5.0f;
 	
-	btnBack->SetPosition(px, py, posZ, buttonSizeX, buttonSizeY);
-	
-	px += buttonSizeX + buttonGap;
-
 	btnImportKeyMap->SetPosition(px, py, posZ, buttonSizeX, buttonSizeY);
 
 	px += buttonSizeX + buttonGap;
@@ -393,12 +377,6 @@ void CViewC64KeyMap::SetPosition(float posX, float posY, float posZ, float sizeX
 
 bool CViewC64KeyMap::ButtonClicked(CGuiButton *button)
 {
-	if (button == btnBack)
-	{
-		SaveAndGoBack();
-		return true;
-	}
-	
 	if (button == btnAssignKey)
 	{
 		AssignKey();
@@ -425,13 +403,12 @@ bool CViewC64KeyMap::ButtonClicked(CGuiButton *button)
 	{
 		ResetKeyboardMappingToFactoryDefault();
 		return true;
-		return true;
 	}
 	
 	return false;
 }
 
-void CViewC64KeyMap::SaveAndGoBack()
+void CViewC64KeyMap::SaveKeyboardMapping()
 {
 	viewC64->debugInterfaceC64->LockMutex();
 	bool ret = C64KeyMapStoreToSettings();
@@ -440,7 +417,7 @@ void CViewC64KeyMap::SaveAndGoBack()
 
 	if (ret)
 	{
-		viewC64->ShowMessage("Keyboard mapping has been successfully saved and set as the new default. Your custom configurations are now the standard settings.");
+//		viewC64->ShowMessage("Keyboard mapping has been successfully saved and set as the new default. Your custom configurations are now the standard settings.");
 	}
 	else
 	{
@@ -483,6 +460,8 @@ void CViewC64KeyMap::SystemDialogFileOpenSelected(CSlrString *path)
 		guiMain->UnlockMutex();
 		
 		viewC64->ShowMessageInfo("C64 Key map loaded");
+		
+		SaveKeyboardMapping();
 		return;
 	}
 
@@ -526,7 +505,7 @@ void CViewC64KeyMap::DoLogic()
 {
 }
 
-CViewC64KeyMapKeyData *CViewC64KeyMap::AddButtonKey(char *keyName1, char *keyName2, float x, float y, float width, int matrixRow, int matrixCol)
+CViewC64KeyMapKeyData *CViewC64KeyMap::AddButtonKey(const char *keyName1, const char *keyName2, float x, float y, float width, int matrixRow, int matrixCol)
 {
 	CViewC64KeyMapKeyData *keyData = new CViewC64KeyMapKeyData();
 	keyData->name1 = keyName1;
@@ -1119,35 +1098,37 @@ void CViewC64KeyMap::AssignKey(u32 keyCode)
 		
 		LOGI("CViewC64KeyMap::AssignKey: keyCode=%d is already assigned", keyCode);
 		guiMain->UnlockMutex();
+		
+		SaveKeyboardMapping();
 		return;
 	}
 	
 	
+	// assign key
+	C64KeyCode *key = new C64KeyCode();
+	
+	key->keyCode = keyCode;
+	key->matrixCol = selectedKeyData->matrixCol;
+	key->matrixRow = selectedKeyData->matrixRow;
+	key->shift = NO_SHIFT;
+	
+	if (isShift)
 	{
-		// assign key
-		C64KeyCode *key = new C64KeyCode();
-		
-		key->keyCode = keyCode;
-		key->matrixCol = selectedKeyData->matrixCol;
-		key->matrixRow = selectedKeyData->matrixRow;
-		key->shift = NO_SHIFT;
-		
-		if (isShift)
-		{
-			key->shift |= LEFT_SHIFT;
-		}
-		
-		LOGD("CViewC64KeyMap::AssignKey: assigned keyCode=%d col=%d row=%d shift=%d", key->keyCode, key->matrixCol, key->matrixRow, key->shift);
-		
-		keyMap->AddKeyCode(key);
-		selectedKeyData->keyCodes.push_back(key);
-		
-		selectedKeyCode = key;
-		
-		btnRemoveKey->enabled = true;
+		key->shift |= LEFT_SHIFT;
 	}
 	
+	LOGD("CViewC64KeyMap::AssignKey: assigned keyCode=%d col=%d row=%d shift=%d", key->keyCode, key->matrixCol, key->matrixRow, key->shift);
+	
+	keyMap->AddKeyCode(key);
+	selectedKeyData->keyCodes.push_back(key);
+	
+	selectedKeyCode = key;
+	
+	btnRemoveKey->enabled = true;
+	
 	guiMain->UnlockMutex();
+	
+	SaveKeyboardMapping();
 }
 
 
@@ -1197,6 +1178,8 @@ void CViewC64KeyMap::RemoveSelectedKey()
 	{
 		btnRemoveKey->enabled = false;
 	}
+	
+	SaveKeyboardMapping();
 }
 
 
@@ -1255,12 +1238,6 @@ bool CViewC64KeyMap::KeyDown(u32 keyCode, bool isShift, bool isAlt, bool isContr
 //		SaveAndGoBack();
 //		return true;
 //	}
-	
-	if (keyCode == MTKEY_BACKSPACE)
-	{
-		SaveAndGoBack();
-		return true;
-	}
 	
 	SelectKeyCode(keyCode);
 
@@ -1362,7 +1339,7 @@ void CViewC64KeyMap::SwitchScreen()
 {
 	if (guiMain->currentView == this)
 	{
-		guiMain->SetView(viewC64->viewC64MainMenu);
+		guiMain->SetView(viewC64->mainMenuHelper);
 	}
 	else
 	{

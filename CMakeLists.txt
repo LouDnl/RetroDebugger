@@ -2,10 +2,12 @@
 cmake_minimum_required(VERSION 3.10)
 project(retrodebugger)
 
+#set(CMAKE_VERBOSE_MAKEFILE on)
+
 #set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED On)
 set(CMAKE_CXX_EXTENSIONS Off)
 
@@ -14,8 +16,10 @@ add_definitions(
     -DIMGUI_IMPL_OPENGL_LOADER_GL3W
 )
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fpermissive")
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive")
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-implicit-function-declaration")
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-macro-redefined")
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-incompatible-pointer-types")
 
 find_package(PkgConfig REQUIRED)
 find_package(SDL2 REQUIRED)
@@ -43,7 +47,6 @@ include_directories(
 
     # These are includes copied from MTEngineSDL
     # TODO: They should be automatically setup by cmake MTEngineSDL, now are just copied over
-    "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL/other/lib/SDL2-2.0.10-static/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL/platform/Linux/src.Linux"
     "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL/platform/Linux/src.Linux/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL"
@@ -90,14 +93,15 @@ include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL/src/Engine/Libs/minizip"
     "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL/src/Engine/Libs/mtrand"
     "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL/src/Engine/Libs/nfd"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL/src/Engine/Libs/nlohmann"
     "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL/src/Engine/Libs/pugixml"
     "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL/src/Engine/Libs/rtmidi"
     "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL/src/Engine/Libs/stb"
     "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL/src/Engine/Libs/tremor"
     "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL/src/Engine/Libs/tremor/Ogg"
     "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL/src/Engine/Libs/utf8"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL/src/Engine/Libs/uWebSockets"
     "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL/src/Engine/Libs/zlib"
-
 
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface"
@@ -169,6 +173,10 @@ include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Emulators/vice/video"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Emulators/vice/ViceInterface"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Emulators/vice/ViceInterface/Adapters"
+
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Remote/Pipe"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Remote/WebSockets"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Remote"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Screens/VicEditor"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Screens"
@@ -691,6 +699,7 @@ add_library(EmulatorVice STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Emulators/vice/ViceInterface/CDebugInterfaceVice.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Emulators/vice/ViceInterface/CAudioChannelVice.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Emulators/vice/ViceInterface/ViceLogWrapper.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Emulators/vice/ViceInterface/CDebuggerServerApiVice.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Emulators/vice/ViceInterface/Adapters/CDataAdapterViceC64.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Emulators/vice/ViceInterface/Adapters/CDataAdapterViceC64Cartridge.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Emulators/vice/ViceInterface/Adapters/CDataAdapterViceC64DirectRam.cpp"
@@ -1256,11 +1265,18 @@ add_library(EmulatorVice STATIC
 add_executable(retrodebugger
     "${CMAKE_CURRENT_SOURCE_DIR}/src/RetroDebuggerAppInit.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Embedded/RetroDebuggerEmbeddedData.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/INT_BinaryProtocol.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/CDebugEventsHistory.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/CDebugBreakpoints.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/CDebugInterfaceTask.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/CDebuggerApi.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/Symbols/CDebugBreakpoint.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/Symbols/CDebugBreakpointAddr.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/Symbols/CDebugBreakpointData.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/Symbols/CDebugBreakpointRasterLine.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/Symbols/CDebugBreakpointEventCallback.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/Symbols/CDebugBreakpointsAddr.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/Symbols/CDebugBreakpointsData.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/Symbols/CDebugBreakpointsRasterLine.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/Symbols/CDebugSymbolsDataWatch.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/Symbols/CDebugSymbolsCodeLabel.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/Symbols/CDebugSymbolsSegment.cpp"
@@ -1284,7 +1300,7 @@ add_executable(retrodebugger
     "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/CDebuggerEmulatorPlugin.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface/CDebugInterface.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Screens/CViewC64.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/Screens/CViewMainMenu.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Screens/CMainMenuHelper.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Views/CViewEmulatorScreen.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Views/CViewDataMap.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Views/CViewEmulationState.cpp"
@@ -1389,11 +1405,14 @@ add_executable(retrodebugger
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Screens/CViewKeyboardShortcuts.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Screens/VicEditor/C64DisplayListCodeGenerator.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Screens/VicEditor/CVicEditorTool.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/Screens/CViewBreakpointsOLD.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Screens/CViewSettingsMenu.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Screens/CViewAbout.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Screens/CViewSnapshots.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Screens/CViewColodore.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Remote/Pipe/CPipeProtocolDebuggerCallback.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Remote/WebSockets/CDebuggerServerWebSockets.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Remote/CDebuggerServerApi.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Remote/CDebuggerServer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Tools/C64SharedMemory.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Tools/C64ColodoreScreen.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Tools/C64Tools.cpp"
@@ -1461,6 +1480,7 @@ target_link_libraries(retrodebugger
     EmulatorNestopiaUE
     EmulatorAtari800
     "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL/build/libMTEngineSDL.a"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../MTEngineSDL/platform/Linux/libs/uSockets.a"
     xcb
     glib-2.0
     gobject-2.0

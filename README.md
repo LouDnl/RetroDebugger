@@ -75,10 +75,7 @@ Put MTEngineSDL and RetroDebugger folders into the same folder and then compile.
 
 ```
 cd RetroDebugger
-mkdir build
-cd build
-cmake ./../
-make
+./build-linux.sh
 ```
 
 Remember to have MTEngineSDL library in `./../../MTEngineSDL` folder.

@@ -39,6 +39,7 @@ extern "C" {
 #include "CDebugMemory.h"
 #include "CDebugMemoryCell.h"
 #include "CViewC64VicEditor.h"
+#include "CSnapshotsManager.h"
 
 #include "C64KeyboardShortcuts.h"
 
@@ -167,6 +168,7 @@ void CViewC64VicDisplay::Initialize(CDebugInterfaceC64 *debugInterface)
 	this->isCursorLocked = false;
 	
 	rasterCursorPosX = rasterCursorPosY = -9999;
+	rasterCursorAddr = -1;
 	
 	// init all types of canvas
 	this->canvasBlank = new C64VicDisplayCanvasBlank(this);
@@ -957,8 +959,10 @@ void CViewC64VicDisplay::RefreshScreenStateOnly(vicii_cycle_state_t *viciiState)
 void CViewC64VicDisplay::RefreshScreen(vicii_cycle_state_t *viciiState)
 {
 	//LOGD("CViewC64VicDisplay::RefreshScreen");
-	
+
+	debugInterface->snapshotsManager->LockMutex();
 	RefreshScreenImageData(viciiState, this->backgroundColorAlpha, this->foregroundColorAlpha);
+	debugInterface->snapshotsManager->UnlockMutex();
 
 	imageScreen->ReBindImageData(imageDataScreen);
 
@@ -1162,6 +1166,10 @@ void CViewC64VicDisplay::Render()
 	
 	// render UI
 	CGuiView::Render();
+	
+////	const float lineWidth = 0.7f;
+//	BlitRectangle(this->fullScanScreenPosX, this->fullScanScreenPosY, this->posZ, this->fullScanScreenSizeX, this->fullScanScreenSizeY, 1.0f, 0.0f, 0.0f, 0.5f, lineWidth);
+
 }
 
 void CViewC64VicDisplay::GetScreenPosFromRasterPos(float rasterX, float rasterY, float *x, float *y)
@@ -2006,14 +2014,14 @@ void CViewC64VicDisplay::RenderBreakpointsLines()
 
 	if (segment)
 	{
-		std::map<int, CBreakpointAddr *> *breakpointsMap = &(segment->breakpointsRasterLine->breakpoints);
+		std::map<int, CDebugBreakpointAddr *> *breakpointsMap = &(segment->breakpointsRasterLine->breakpoints);
 		
 		float cy = displayPosY + rasterCrossOffsetY - (0x33 * rasterScaleFactorY) + rasterScaleFactorY/2.0f;
 
-		for (std::map<int, CBreakpointAddr *>::iterator it = breakpointsMap->begin();
+		for (std::map<int, CDebugBreakpointAddr *>::iterator it = breakpointsMap->begin();
 			 it != breakpointsMap->end(); it++)
 		{
-			CBreakpointAddr *breakpoint = it->second;
+			CDebugBreakpointAddr *breakpoint = it->second;
 			float rasterLine = breakpoint->addr;
 			float lineY = cy + rasterScaleFactorY * rasterLine;
 			BlitFilledRectangle(posX, lineY, posZ, sizeX, rasterScaleFactorY, 1.0f, 0.0f, 0.0f, c64SettingsScreenGridLinesAlpha);
@@ -2037,6 +2045,7 @@ bool CViewC64VicDisplay::ScrollMemoryAndDisassemblyToRasterPosition(float rx, fl
 
 	// check if outside
 	int addr = -1;
+	rasterCursorAddr = -1;
 	
 	if (autoScrollMode == AUTOSCROLL_DISASSEMBLY_RASTER_PC)
 	{
@@ -2051,7 +2060,6 @@ bool CViewC64VicDisplay::ScrollMemoryAndDisassemblyToRasterPosition(float rx, fl
 		return false;
 	}
 
-	
 	if (autoScrollMode == AUTOSCROLL_DISASSEMBLY_COLOUR_ADDRESS)
 	{
 		addr = GetColorAddressForRaster(rx, ry);
@@ -2080,6 +2088,7 @@ bool CViewC64VicDisplay::ScrollMemoryAndDisassemblyToRasterPosition(float rx, fl
 	
 	rasterCursorPosX = rx;
 	rasterCursorPosY = ry;
+	rasterCursorAddr = addr;
 	
 	viewC64->viewC64MemoryDataDump->ScrollToAddress(addr, true);
 	
@@ -2688,21 +2697,21 @@ void CViewC64VicDisplay::ToggleVICRasterBreakpoint()
 		viewC64->debugInterfaceC64->LockMutex();
 
 		CDebugSymbolsSegmentC64 *segment = (CDebugSymbolsSegmentC64 *) debugInterface->symbols->currentSegment;
-		std::map<int, CBreakpointAddr *> *breakpointsMap = &(segment->breakpointsRasterLine->breakpoints);
+		std::map<int, CDebugBreakpointAddr *> *breakpointsMap = &(segment->breakpointsRasterLine->breakpoints);
 
 		// find if breakpoint exists
-		std::map<int, CBreakpointAddr *>::iterator it = breakpointsMap->find(rasterLine);
+		std::map<int, CDebugBreakpointAddr *>::iterator it = breakpointsMap->find(rasterLine);
 		
 		if (it == breakpointsMap->end())
 		{
-			CBreakpointAddr *addrBreakpoint = new CBreakpointAddr(rasterLine);
-			(*breakpointsMap)[addrBreakpoint->addr] = addrBreakpoint;
+			CDebugBreakpointRasterLine *rasterBreakpoint = new CDebugBreakpointRasterLine(debugInterface->symbols, rasterLine);
+			(*breakpointsMap)[rasterBreakpoint->addr] = rasterBreakpoint;
 			
 			sprintf(buf, "Created raster breakpoint line $%03X", rasterLine);
 		}
 		else
 		{
-			CBreakpointAddr *breakpoint = it->second;
+			CDebugBreakpointAddr *breakpoint = it->second;
 			breakpointsMap->erase(it);
 			delete breakpoint;
 			
@@ -3015,6 +3024,12 @@ void CViewC64VicDisplay::RenderContextMenuItems()
 }
 
 // Layout
+void CViewC64VicDisplay::LayoutParameterChanged(CLayoutParameter *layoutParameter)
+{
+	CGuiView::LayoutParameterChanged(layoutParameter);
+	this->UpdateGridLinesVisibleOnCurrentZoom();
+}
+
 void CViewC64VicDisplay::Serialize(CByteBuffer *byteBuffer)
 {
 }
@@ -3022,3 +3037,6 @@ void CViewC64VicDisplay::Serialize(CByteBuffer *byteBuffer)
 void CViewC64VicDisplay::Deserialize(CByteBuffer *byteBuffer)
 {
 }
+
+
+

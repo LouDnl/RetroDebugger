@@ -45,6 +45,7 @@
 #include "CViewC64Charset.h"
 #include "CViewC64VicEditor.h"
 #include "CViewC64KeyMap.h"
+#include "CDebuggerServer.h"
 #include "CConfigStorageHjson.h"
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -57,6 +58,15 @@ extern bool c64dSkipBogusPageOffsetReadOnSTA;
 #include <map>
 
 void PLUGIN_GoatTrackerSetVisible(bool isVisible);
+
+// move me to ImGui namespace
+void ImGuiTextCentered(std::string text) {
+	auto windowWidth = ImGui::GetWindowSize().x;
+	auto textWidth   = ImGui::CalcTextSize(text.c_str()).x;
+
+	ImGui::SetCursorPosX((windowWidth - textWidth) * 0.5f);
+	ImGui::Text(text.c_str());
+}
 
 CMainMenuBar::CMainMenuBar()
 {
@@ -232,11 +242,11 @@ CMainMenuBar::CMainMenuBar()
 	kbsReloadAndRestart = new CSlrKeyboardShortcut(KBZONE_GLOBAL, "Open most recent", 'l', false, false, true, false, this);
 	guiMain->AddKeyboardShortcut(kbsReloadAndRestart);
 	
-	kbsSoftReset = new CSlrKeyboardShortcut(KBZONE_GLOBAL, "Soft Reset", 'r', false, false, true, false, this);
-	guiMain->AddKeyboardShortcut(kbsSoftReset);
+	kbsResetSoft = new CSlrKeyboardShortcut(KBZONE_GLOBAL, "Soft Reset", 'r', false, false, true, false, this);
+	guiMain->AddKeyboardShortcut(kbsResetSoft);
 
-	kbsHardReset = new CSlrKeyboardShortcut(KBZONE_GLOBAL, "Hard Reset", 'r', true, false, true, false, this);
-	guiMain->AddKeyboardShortcut(kbsHardReset);
+	kbsResetHard = new CSlrKeyboardShortcut(KBZONE_GLOBAL, "Hard Reset", 'r', true, false, true, false, this);
+	guiMain->AddKeyboardShortcut(kbsResetHard);
 
 	//
 	kbsIsWarpSpeed = new CSlrKeyboardShortcut(KBZONE_GLOBAL, "Warp speed", 'p', false, false, true, false, this);
@@ -477,7 +487,7 @@ void CMainMenuBar::RenderImGui()
 //				viewC64->ShowDialogOpenFile(this, &openFileExtensions, c64SettingsDefaultPRGFolder, windowTitle);
 //				delete windowTitle;
 				
-				viewC64->viewC64MainMenu->OpenDialogOpenFile();
+				viewC64->mainMenuHelper->OpenDialogOpenFile();
 			}
 			
 			bool mostRecentIsAvailable = viewC64->recentlyOpenedFiles->IsMostRecentFilePathAvailable();
@@ -505,13 +515,13 @@ void CMainMenuBar::RenderImGui()
 			}
 			
 			ImGui::Separator();
-			if (ImGui::MenuItem("Soft Reset", kbsSoftReset->cstr))
+			if (ImGui::MenuItem("Soft Reset", kbsResetSoft->cstr))
 			{
-				kbsSoftReset->Run();
+				kbsResetSoft->Run();
 			}
-			if (ImGui::MenuItem("Hard Reset", kbsHardReset->cstr))
+			if (ImGui::MenuItem("Hard Reset", kbsResetHard->cstr))
 			{
-				kbsHardReset->Run();
+				kbsResetHard->Run();
 			}
 
 			if (viewC64->debugInterfaceC64->isRunning)
@@ -1459,7 +1469,11 @@ void CMainMenuBar::RenderImGui()
 								{
 									currentBorderMode = i;
 									viewC64->config->SetInt("viceViciiBorderMode", &currentBorderMode);
+
 									debugInterfaceVice->SetViciiBorderMode(currentBorderMode);
+									
+									viewC64->viewC64Screen->RefreshEmulatorScreenImageData();
+									viewC64->viewVicEditor->ResetBorderType();
 								}
 							}
 							ImGui::EndMenu();
@@ -2481,6 +2495,44 @@ void CMainMenuBar::RenderImGui()
 					
 					ImGui::EndMenu();
 				}
+				ImGui::Separator();
+				if (ImGui::MenuItem("WebSockets debugger server", "", &c64SettingsRunDebuggerServerWebSockets))
+				{
+					if (viewC64->debuggerServer == NULL)
+					{
+						viewC64->DebuggerServerWebSocketsStart();
+					}
+					if (viewC64->debuggerServer != NULL)
+					{
+						if (c64SettingsRunDebuggerServerWebSockets)
+						{
+							viewC64->debuggerServer->Start();
+							char *buf = SYS_GetCharBuf();
+							sprintf(buf, "WebSockets server started on port %d.", c64SettingsRunDebuggerServerWebSocketsPort);
+							guiMain->ShowNotification("Information", buf);
+							SYS_ReleaseCharBuf(buf);
+						}
+						else
+						{
+							viewC64->debuggerServer->Stop();
+							if (viewC64->debuggerServer->AreClientsConnected())
+							{
+								guiMain->ShowMessageBox("Clients connected", "Please disconnect all clients or restart RetroDebugger to stop the WebSocket server. Save your work before proceeding.");
+							}
+							else
+							{
+								guiMain->ShowNotification("Information", "WebSockets server stopped.");
+							}
+						}
+					}
+					C64DebuggerStoreSettings();
+				}
+				if (ImGui::InputInt("Port", &c64SettingsRunDebuggerServerWebSocketsPort, 0, 0, ImGuiInputTextFlags_EnterReturnsTrue))
+				{
+					guiMain->ShowMessageBox("Required restart", "To apply changes to the WebSocket server port setting, please restart the server.");
+					viewC64->DebuggerServerWebSocketsSetPort(c64SettingsRunDebuggerServerWebSocketsPort);
+					C64DebuggerStoreSettings();
+				}
 				ImGui::EndMenu();
 			}
 			ImGui::Separator();
@@ -2600,6 +2652,84 @@ void CMainMenuBar::RenderImGui()
 			}
 			
 			// TODO: copypasted code ^^^^^^
+			
+			if (ImGui::BeginMenu("Mouse"))
+			{
+				if (ImGui::MenuItem("Mouse enabled",
+									NULL,
+									&c64SettingsEmulatedMouseC64Enabled))
+				{
+					debugInterfaceVice->EmulatedMouseEnable(c64SettingsEmulatedMouseC64Enabled);
+					debugInterfaceVice->EmulatedMouseSetType(c64SettingsEmulatedMouseC64Type);
+					C64DebuggerStoreSettings();
+				}
+
+				if (ImGui::MenuItem("Mouse auto-hide cursor",
+									NULL,
+									&c64SettingsEmulatedMouseCursorAutoHide))
+				{
+					C64DebuggerStoreSettings();
+				}
+				
+				if (ImGui::BeginMenu("Mouse type"))
+				{
+					//#define MOUSE_TYPE_1351     0
+					//#define MOUSE_TYPE_NEOS     1
+					//#define MOUSE_TYPE_AMIGA    2
+					//#define MOUSE_TYPE_PADDLE   3
+					//#define MOUSE_TYPE_CX22     4
+					//#define MOUSE_TYPE_ST       5
+					//#define MOUSE_TYPE_SMART    6
+					//#define MOUSE_TYPE_MICROMYS 7
+					//#define MOUSE_TYPE_KOALAPAD 8
+					//#define MOUSE_TYPE_NUM      9
+					
+					std::vector<const char *> mouseTypeNames;
+					mouseTypeNames.push_back("1351");
+					mouseTypeNames.push_back("NEOS");
+					mouseTypeNames.push_back("Amiga");
+					mouseTypeNames.push_back("Paddles");
+					mouseTypeNames.push_back("Atari CX-22");
+					mouseTypeNames.push_back("Atari ST");
+					mouseTypeNames.push_back("Smart");
+					mouseTypeNames.push_back("MicroMys");
+					
+					int i = 0;
+					for (std::vector<const char *>::iterator it = mouseTypeNames.begin(); it != mouseTypeNames.end(); it++)
+					{
+						const char *name = *it;
+						bool selected = (i == c64SettingsEmulatedMouseC64Type);
+						if (ImGui::MenuItem(name, NULL, &selected))
+						{
+							c64SettingsEmulatedMouseC64Type = i;
+							debugInterfaceVice->EmulatedMouseSetType(c64SettingsEmulatedMouseC64Type);
+							C64DebuggerStoreSettings();
+						}
+						i++;
+					}
+					
+					ImGui::EndMenu();
+				}
+				
+				if (ImGui::BeginMenu("Mouse port"))
+				{
+					bool isSelected = (c64SettingsEmulatedMouseC64Port == 0);
+					if (ImGui::MenuItem("Port 1", NULL, &isSelected))
+					{
+						c64SettingsEmulatedMouseC64Port = 0;
+						C64DebuggerStoreSettings();
+					}
+					isSelected = (c64SettingsEmulatedMouseC64Port == 1);
+					if (ImGui::MenuItem("Port 2", NULL, &isSelected))
+					{
+						c64SettingsEmulatedMouseC64Port = 1;
+						C64DebuggerStoreSettings();
+					}
+					ImGui::EndMenu();
+				}
+				
+				ImGui::EndMenu();
+			}
 			
 			ImGui::Separator();
 			
@@ -2773,7 +2903,7 @@ void CMainMenuBar::RenderImGui()
 		{
 			ImGui::Begin("Retro Debugger v" RETRODEBUGGER_VERSION_STRING " About", &show_retro_debugger_about);
 			ImGui::Text("Retro Debugger is a multiplatform debugger APIs host with ImGui implementation.");
-			ImGui::Text("(C) 2016-2023 Marcin 'slajerek' Skoczylas, see README for libraries copyright.");
+			ImGui::Text("(C) 2016-2025 Marcin 'slajerek' Skoczylas, see README for libraries copyright.");
 			ImGui::Separator();
 			ImGui::Text("");
 			ImGui::Text("If you like this tool and you feel that you would like to share with me some beers,");
@@ -2782,6 +2912,7 @@ void CMainMenuBar::RenderImGui()
 			ImGui::TextURL("http://tinyurl.com/C64Debugger-PayPal", "https://www.paypal.com/donate/?business=7CQZJRKL9BXPL&no_recurring=0&item_name=For+the+Retro+Debugger&currency_code=EUR", true, false);
 			ImGui::Text("");
 			ImGui::Separator();
+			ImGui::Text("                            Built for %s %s", SYS_GetPlatformNameString(), SYS_GetPlatformArchitectureString());
 
 			for (std::vector<CDebugInterface *>::iterator it = viewC64->debugInterfaces.begin(); it != viewC64->debugInterfaces.end(); it++)
 			{
@@ -2829,19 +2960,22 @@ void CMainMenuBar::RenderImGui()
 	if (layoutData && openPopupImGuiWorkaround)
 	{
 		layoutName[0] = 0x00;
+		message[0] = 0x00;
 		doNotUpdateViewsPosition = false;
 		ImGui::OpenPopup("New Workspace");
 	}
 	
-	if (ImGui::BeginPopupModal("New Workspace", NULL, waitingForNewLayoutKeyShortcut ? ImGuiWindowFlags_NoResize : ImGuiWindowFlags_AlwaysAutoResize))
+	if (ImGui::BeginPopupModal("New Workspace", NULL, ImGuiWindowFlags_AlwaysAutoResize)) //waitingForNewLayoutKeyShortcut ? ImGuiWindowFlags_NoResize : ImGuiWindowFlags_AlwaysAutoResize))
 	{
 		if (openPopupImGuiWorkaround)
 			ImGui::SetKeyboardFocusHere();
 
+		ImGui::Dummy(ImVec2(350.0f, 0.0f));
+
 		if (waitingForNewLayoutKeyShortcut == false)
 		{
 			bool saveLayout = false;
-			if (ImGui::InputText("Name##NewWorkspacePopup", layoutName, 127, ImGuiInputTextFlags_EnterReturnsTrue))
+			if (ImGui::InputText("Name##NewWorkspacePopup", layoutName, 200, ImGuiInputTextFlags_EnterReturnsTrue))
 			{
 				saveLayout = true;
 			}
@@ -2855,13 +2989,16 @@ void CMainMenuBar::RenderImGui()
 
 			if (ImGui::Button("Assign keyboard shortcut"))
 			{
+				message[0] = 0;
 				waitingForNewLayoutKeyShortcut = true;
+				guiMain->AddGlobalKeyboardCallback(this);
 			}
 
 			if (ImGui::Button("Cancel"))
 			{
 				delete layoutData;
 				layoutData = NULL;
+				guiMain->RemoveGlobalKeyboardCallback(this);
 				ImGui::CloseCurrentPopup();
 			}
 			
@@ -2899,15 +3036,28 @@ void CMainMenuBar::RenderImGui()
 				}
 				layoutData = NULL;
 				
+				guiMain->RemoveGlobalKeyboardCallback(this);
 				ImGui::CloseCurrentPopup();
 			}
 		}
 		else
 		{
 			// waiting for key shortcut
+			ImGui::NewLine();
+			ImGuiTextCentered("Assigning workspace key shortcut");
+			ImGuiTextCentered("Now press the shortcut key");
+			ImGui::NewLine();
+
+			if (message[0] != 0)
+			{
+				ImGuiTextCentered(message);
+				ImGui::NewLine();
+			}
 			
-			ImGui::Text("Hover here your cursor");
-			ImGui::Text ("and press a new shortcut key");
+			if (ImGui::Button("Cancel"))
+			{
+				waitingForNewLayoutKeyShortcut = false;
+			}
 		}
 		
 		openPopupImGuiWorkaround = false;
@@ -2917,19 +3067,12 @@ void CMainMenuBar::RenderImGui()
 
 }
 
-bool CMainMenuBar::KeyDown(u32 keyCode, bool isShift, bool isAlt, bool isControl, bool isSuper)
+void CMainMenuBar::GlobalPreKeyDownCallback(u32 keyCode, bool isShift, bool isAlt, bool isControl, bool isSuper)
 {
-	LOGI("CMainMenuBar::KeyDown: keyCode=%d %s %s %s %s\n", keyCode, STRBOOL(isShift), STRBOOL(isAlt), STRBOOL(isControl), STRBOOL(isSuper));
-	if (keyCode == MTKEY_ESC && guiMain->IsViewFullScreen())
-	{
-		guiMain->SetViewFullScreen(SetFullScreenMode::ViewLeaveFullScreen, NULL);
-		return true;
-	}
-	
 	if (waitingForNewLayoutKeyShortcut)
 	{
 		if (SYS_IsKeyCodeSpecial(keyCode))
-			return false;
+			return;
 		
 		if (layoutData->keyShortcut)
 		{
@@ -2941,18 +3084,24 @@ bool CMainMenuBar::KeyDown(u32 keyCode, bool isShift, bool isAlt, bool isControl
 		CSlrKeyboardShortcut *findShortcut = guiMain->keyboardShortcuts->FindShortcut(KBZONE_GLOBAL, keyCode, isShift, isAlt, isControl, isSuper);
 		if (findShortcut != NULL)
 		{
-			char *buf = SYS_GetCharBuf();
-			sprintf(buf, "Keyboard shortcut %s is already assigned to %s", findShortcut->cstr, findShortcut->name);
-			guiMain->ShowMessageBox("Please revise", buf);
-			SYS_ReleaseCharBuf(buf);
-			waitingForNewLayoutKeyShortcut = false;
-			return true;
+			sprintf(message, "%s is already assigned to %s", findShortcut->cstr, findShortcut->name);
+			return;
 		}
 
 		// keyboard shortcut name will be updated on save
 		layoutData->keyShortcut = new CSlrKeyboardShortcut(KBZONE_GLOBAL, "", keyCode, isShift, isAlt, isControl, guiMain->isSuperPressed, guiMain->layoutManager);
 		
 		waitingForNewLayoutKeyShortcut = false;
+		return;
+	}
+}
+
+bool CMainMenuBar::KeyDown(u32 keyCode, bool isShift, bool isAlt, bool isControl, bool isSuper)
+{
+	LOGI("CMainMenuBar::KeyDown: keyCode=%d %s %s %s %s\n", keyCode, STRBOOL(isShift), STRBOOL(isAlt), STRBOOL(isControl), STRBOOL(isSuper));
+	if (keyCode == MTKEY_ESC && guiMain->IsViewFullScreen())
+	{
+		guiMain->SetViewFullScreen(SetFullScreenMode::ViewLeaveFullScreen, NULL);
 		return true;
 	}
 	
@@ -2980,7 +3129,7 @@ bool CMainMenuBar::ProcessKeyboardShortcut(u32 zone, u8 actionType, CSlrKeyboard
 	
 	if (shortcut == kbsOpenFile)
 	{
-		viewC64->viewC64MainMenu->OpenDialogOpenFile();
+		viewC64->mainMenuHelper->OpenDialogOpenFile();
 		return true;
 	}
 	
@@ -3154,13 +3303,13 @@ bool CMainMenuBar::ProcessKeyboardShortcut(u32 zone, u8 actionType, CSlrKeyboard
 		
 		if (shortcut == kbsInsertD64)
 		{
-			viewC64->viewC64MainMenu->OpenDialogInsertD64();
+			viewC64->mainMenuHelper->OpenDialogInsertD64();
 			return true;
 		}
 
 		if (shortcut == kbsInsertNextD64)
 		{
-			viewC64->viewC64MainMenu->InsertNextD64();
+			viewC64->mainMenuHelper->InsertNextD64();
 			return true;
 		}
 		if (shortcut == kbsAutoJmpFromInsertedDiskFirstPrg)
@@ -3183,7 +3332,7 @@ bool CMainMenuBar::ProcessKeyboardShortcut(u32 zone, u8 actionType, CSlrKeyboard
 			CSlrString *filePath = viewC64->recentlyOpenedFiles->GetMostRecentFilePath();
 			if (filePath)
 			{
-				viewC64->viewC64MainMenu->LoadFile(filePath);
+				viewC64->mainMenuHelper->LoadFile(filePath);
 			}
 			return true;
 		}
@@ -3191,7 +3340,7 @@ bool CMainMenuBar::ProcessKeyboardShortcut(u32 zone, u8 actionType, CSlrKeyboard
 		// datasette
 		if (shortcut == kbsTapeAttach)
 		{
-			viewC64->viewC64MainMenu->OpenDialogInsertTape();
+			viewC64->mainMenuHelper->OpenDialogInsertTape();
 			return true;
 		}
 		else if (shortcut == kbsTapeDetach)
@@ -3267,7 +3416,7 @@ bool CMainMenuBar::ProcessKeyboardShortcut(u32 zone, u8 actionType, CSlrKeyboard
 	{
 		if (shortcut == kbsInsertATR)
 		{
-			viewC64->viewC64MainMenu->OpenDialogInsertATR();
+			viewC64->mainMenuHelper->OpenDialogInsertATR();
 			return true;
 		}
 	}
@@ -3386,12 +3535,12 @@ bool CMainMenuBar::ProcessKeyboardShortcut(u32 zone, u8 actionType, CSlrKeyboard
 	
 	if (shortcut == kbsInsertCartridge)
 	{
-		viewC64->viewC64MainMenu->OpenDialogInsertCartridge();
+		viewC64->mainMenuHelper->OpenDialogInsertCartridge();
 		return true;
 	}
 	else if (shortcut == kbsInsertAtariCartridge)
 	{
-		viewC64->viewC64MainMenu->OpenDialogInsertAtariCartridge();
+		viewC64->mainMenuHelper->OpenDialogInsertAtariCartridge();
 		return true;
 	}
 	
@@ -3433,14 +3582,14 @@ bool CMainMenuBar::ProcessKeyboardShortcut(u32 zone, u8 actionType, CSlrKeyboard
 		viewC64->debugInterfaceC64->DiskDriveReset();
 		return true;
 	}
-	else if (shortcut == kbsSoftReset)
+	else if (shortcut == kbsResetSoft)
 	{
-		viewC64->SoftReset();
+		viewC64->ResetSoft();
 		return true;
 	}
-	else if (shortcut == kbsHardReset)
+	else if (shortcut == kbsResetHard)
 	{
-		viewC64->HardReset();
+		viewC64->ResetHard();
 		return true;
 	}
 	else if (shortcut == kbsStepOverInstruction)
@@ -3897,41 +4046,41 @@ void CMainMenuBar::DetachEverything(bool showMessage, bool storeSettings)
 
 	}
 	
-//	if (viewC64->debugInterfaceNes)
-//	{
-//		viewC64->debugInterfaceNes->DetachEverything();
-//
-//		guiMain->LockMutex();
-//
-////		if (viewC64->viewC64MainMenu->menuItemInsertATR->str2 != NULL)
-////			delete viewC64->viewC64MainMenu->menuItemInsertATR->str2;
-////		viewC64->viewC64MainMenu->menuItemInsertATR->str2 = NULL;
-//
-//		delete c64SettingsPathToATR;
-//		c64SettingsPathToATR = NULL;
-//
-////		if (viewC64->viewC64MainMenu->menuItemInsertAtariCartridge->str2 != NULL)
-////			delete viewC64->viewC64MainMenu->menuItemInsertAtariCartridge->str2;
-////		viewC64->viewC64MainMenu->menuItemInsertAtariCartridge->str2 = NULL;
-//
-//		delete c64SettingsPathToAtariCartridge;
-//		c64SettingsPathToAtariCartridge = NULL;
-//
-////		if (viewC64->viewC64MainMenu->menuItemOpenFile->str2 != NULL)
-////			delete viewC64->viewC64MainMenu->menuItemOpenFile->str2;
-////		viewC64->viewC64MainMenu->menuItemOpenFile->str2 = NULL;
-//
-//		delete c64SettingsPathToXEX;
-//		c64SettingsPathToXEX = NULL;
-//
-//		delete c64SettingsPathToCAS;
-//		c64SettingsPathToCAS = NULL;
-//
-//		viewC64->debugInterfaceAtari->ClearDebugMarkers();
-//
-//		guiMain->UnlockMutex();
-//
-//	}
+	if (viewC64->debugInterfaceNes)
+	{
+		viewC64->debugInterfaceNes->DetachEverything();
+
+		guiMain->LockMutex();
+
+//		if (viewC64->viewC64MainMenu->menuItemInsertATR->str2 != NULL)
+//			delete viewC64->viewC64MainMenu->menuItemInsertATR->str2;
+//		viewC64->viewC64MainMenu->menuItemInsertATR->str2 = NULL;
+
+		delete c64SettingsPathToATR;
+		c64SettingsPathToATR = NULL;
+
+//		if (viewC64->viewC64MainMenu->menuItemInsertAtariCartridge->str2 != NULL)
+//			delete viewC64->viewC64MainMenu->menuItemInsertAtariCartridge->str2;
+//		viewC64->viewC64MainMenu->menuItemInsertAtariCartridge->str2 = NULL;
+
+		delete c64SettingsPathToAtariCartridge;
+		c64SettingsPathToAtariCartridge = NULL;
+
+//		if (viewC64->viewC64MainMenu->menuItemOpenFile->str2 != NULL)
+//			delete viewC64->viewC64MainMenu->menuItemOpenFile->str2;
+//		viewC64->viewC64MainMenu->menuItemOpenFile->str2 = NULL;
+
+		delete c64SettingsPathToXEX;
+		c64SettingsPathToXEX = NULL;
+
+		delete c64SettingsPathToCAS;
+		c64SettingsPathToCAS = NULL;
+
+		viewC64->debugInterfaceAtari->ClearDebugMarkers();
+
+		guiMain->UnlockMutex();
+
+	}
 	
 	if (storeSettings)
 	{
@@ -4056,7 +4205,7 @@ void CMainMenuBar::DetachC64PRG(bool showMessage)
 	}
 
 	viewC64->debugInterfaceC64->ClearDebugMarkers();
-	viewC64->debugInterfaceC64->HardReset();
+	viewC64->debugInterfaceC64->ResetHard();
 
 	C64DebuggerStoreSettings();
 	
@@ -4078,7 +4227,7 @@ void CMainMenuBar::DetachAtariXEX(bool showMessage)
 	}
 
 	viewC64->debugInterfaceAtari->ClearDebugMarkers();
-	viewC64->debugInterfaceAtari->HardReset();
+	viewC64->debugInterfaceAtari->ResetHard();
 
 	C64DebuggerStoreSettings();
 	
@@ -4306,13 +4455,13 @@ void CMainMenuBar::SystemDialogFileOpenSelected(CSlrString *path)
 
 	else if (systemDialogOperation == SystemDialogOperationLoadREU)
 	{
-		viewC64->viewC64MainMenu->AttachReu(path, true, true);
+		viewC64->mainMenuHelper->AttachReu(path, true, true);
 		C64DebuggerStoreSettings();
 	}
 
 	else if (systemDialogOperation == SystemDialogOperationSaveREU)
 	{
-		viewC64->viewC64MainMenu->SaveReu(path, true, true);
+		viewC64->mainMenuHelper->SaveReu(path, true, true);
 		C64DebuggerStoreSettings();
 	}
 	

@@ -25,7 +25,8 @@
 #include "atari-config.h"
 #include "pokeyrec.h"
 #include "pokey.h"
-#include "log.h"
+#include "a-util.h"
+#include "a-log.h"
 #include "util.h"
 #include <string.h>
 #include <stdio.h>
